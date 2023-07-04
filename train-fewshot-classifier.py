@@ -4,19 +4,38 @@
 """
 Trains few-shot binary text classifier to identify regulatory vs. comnstitutive sentences.
 """
+import argparse
+from pathlib import Path
+
 import pandas as pd
 import math
 import random
+
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import pickle
 
-IN_FNAME = 'data/training_data_legal_obligations.csv' # Input filename
-LABEL_COLUMN_NAME = 'Regulatory (1) Constitutive (0)' # groundtruth column name
+def parse_arguments() -> Path:
+    """ Parses command line arguments.
+
+    Returns
+    -------
+    Data path
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('data_path', type=Path, help='Path to the data csv containing the instances')
+    args = parser.parse_args()
+    return args.data_path
+
+
+IN_FNAME = parse_arguments() # Input filename
+LABEL_COLUMN_NAME = 'Regulatory (1)' # groundtruth column name
 PRETRAINED_MODEL = "facebook/bart-large-mnli" # pretrained few-shot model to finetune
 CLASSES = {"C": 0, "R": 1} # 'C' class refers to 'Constitutive', 'R' class refers to 'Regulatory'
 BATCH_SIZES = [8]
 EPOCHS = [25]
+
+TRAIN_PERC = 0.8 # Train-test split 80-20
 
 def split_data(data, train_p=TRAIN_PERC):
     """ Splits data into training and testing sets
@@ -126,7 +145,7 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     # batch_size = 32
-    for epoch in range(epochs):  # Adjust the number of epochs as needed
+    for epoch in range(epochs):
         optimizer.zero_grad()
         # Calculate the total number of samples
         num_samples = len(train_inputs)
@@ -298,7 +317,7 @@ def validate_model(classifier, test_data):
 # read data from file into dataframe
 df = pd.read_csv(IN_FNAME)
 # make sure we only look at valid rows (that have either 0 or 1 for regulatory or constitutive)
-relevant_df = df[df[LABEL_COLUMN_NAME].isin([0, 1])] 
+relevant_df = df[df[LABEL_COLUMN_NAME].isin([0, 1])]
 # split data into constitutive and regulatory rows
 constitutive_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == 0]
 regulatory_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == 1]
@@ -319,7 +338,6 @@ for row in regulatory_df.itertuples():
     curr_entry['label'] = 'R'
     data.append(curr_entry)
 
-TRAIN_PERC = 0.8 # Train-test split 80-20
 training_texts, test_texts = split_data(data) # split data into train/test sets
 
 # Train the models and obtain the classifiers
