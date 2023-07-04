@@ -17,6 +17,7 @@ PRETRAINED_MODEL = "facebook/bart-large-mnli" # pretrained few-shot model to fin
 CLASSES = {"C": 0, "R": 1} # 'C' class refers to 'Constitutive', 'R' class refers to 'Regulatory'
 BATCH_SIZES = [8]
 EPOCHS = [25]
+TRAIN_PERC = 0.8 # Train-test split 80-20
 
 def split_data(data, train_p=TRAIN_PERC):
     """ Splits data into training and testing sets
@@ -298,10 +299,10 @@ def validate_model(classifier, test_data):
 # read data from file into dataframe
 df = pd.read_csv(IN_FNAME)
 # make sure we only look at valid rows (that have either 0 or 1 for regulatory or constitutive)
-relevant_df = df[df[LABEL_COLUMN_NAME].isin([0, 1])] 
+relevant_df = df[df[LABEL_COLUMN_NAME].isin(['0', '1'])] 
 # split data into constitutive and regulatory rows
-constitutive_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == 0]
-regulatory_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == 1]
+constitutive_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == '0']
+regulatory_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == '1']
 
 # translate data into few-shot training samples
 data = []
@@ -319,10 +320,9 @@ for row in regulatory_df.itertuples():
     curr_entry['label'] = 'R'
     data.append(curr_entry)
 
-TRAIN_PERC = 0.8 # Train-test split 80-20
 training_texts, test_texts = split_data(data) # split data into train/test sets
 
-# Train the models and obtain the classifiers
+# Train and validate the models
 import calendar
 import time
 import os.path
