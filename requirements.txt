@@ -2,3 +2,5 @@ pandas==2.0.2
 spacy==3.5.3
 scikit-learn==1.2.2
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0.tar.gz
+transformers
+torch
