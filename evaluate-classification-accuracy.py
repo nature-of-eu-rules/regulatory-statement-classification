@@ -34,7 +34,7 @@ def calculate_metrics(labels, predictions):
     f1_score = report['macro avg']['f1-score']
     return precision, recall, f1_score, acc
 
-IN_FNAME = 'data_to_evaluate.csv' # Input filename
+IN_FNAME = 'output-result/legal_obl_rulebased_evaluation.csv' # Input filename
 GROUNDTRUTH_COLUMN_NAME = 'Regulatory (1) Constitutive (0)' # groundtruth column name
 PREDICTIONS_COLUMN_NAME = 'regulatory_according_to_rule' # predictions column name
 
