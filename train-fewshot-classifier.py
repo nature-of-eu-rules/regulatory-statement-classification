@@ -11,6 +11,7 @@ import pandas as pd
 import math
 import random
 
+from tqdm import tqdm
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import pickle
@@ -145,7 +146,7 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     # batch_size = 32
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs), desc=f'Training using batch_size={batch_size}, epochs={epochs}'):
         optimizer.zero_grad()
         # Calculate the total number of samples
         num_samples = len(train_inputs)
@@ -153,7 +154,7 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
         num_batches = (num_samples + batch_size - 1) // batch_size
         # Loop over the batches
         b_idx = 0
-        for batch_index in range(num_batches):
+        for batch_index in tqdm(range(num_batches), position=1, desc=f'Processing batches for epoch {epoch}'):
             # print("batch ", str(b_idx))
             b_idx += 1
             # Calculate the batch start and end indices
