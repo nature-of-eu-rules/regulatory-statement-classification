@@ -480,7 +480,10 @@ rule_predictions = []
 attributes = []
 for index, row in df.iterrows():
     print(index, '/', len(df))
-    prediction = is_regulatory_or_constitutive(row['sent'])
+    if (len(row['sent'].split()) > 1000):
+        prediction = {'pred' : 0, 'attr' : ''}
+    else:
+        prediction = is_regulatory_or_constitutive(row['sent'])
     rule_predictions.append(prediction['pred'])
     attributes.append(prediction['attr'])
 

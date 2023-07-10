@@ -506,7 +506,10 @@ for tuple in list_of_dataframes:
     for index, row in current_df.iterrows():
         # print(curr_idx, '/', len(current_df))
         curr_idx += 1
-        prediction = is_regulatory_or_constitutive(row['sent'])
+        if (len(row['sent'].split()) > 1000):
+            prediction = {'pred' : 0, 'attr' : ''}
+        else:
+            prediction = is_regulatory_or_constitutive(row['sent'])
         rule_predictions.append(prediction['pred'])
         attributes.append(prediction['attr'])
 
