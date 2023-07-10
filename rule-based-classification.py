@@ -12,37 +12,34 @@ import pandas as pd
 import spacy
 import os
 import json
+import argparse
+import sys
+from os.path import exists
 
 # Load the English language model
 nlp = spacy.load('en_core_web_sm')
 nlp.add_pipe('merge_noun_chunks')
 
-IN_FNAME = "data/test_data.csv" # Input filename
-OUT_DIR = "output-result/" # Output directory
-OUT_FNAME = "legal_obl_rulebased_evaluation.csv" # Output filename
+argParser = argparse.ArgumentParser(description='Regulatory vs. Non-regulatory sentence classifier for EU legislation based on NLP dependency analysis')
+required = argParser.add_argument_group('required arguments')
+required.add_argument("-in", "--input", required=True, help="Path to input CSV file. Must have at least one column with header 'sent' containing sentences from EU legislation in English.")
+required.add_argument("-out", "--output", required=True, help="Path to output CSV file in which to store the classification results.")
+required.add_argument("-agts", "--agents", required=True, help="Path to JSON file which contains data of the form {'agent_nouns' : [...list of lowercase English word strings, each of which represents an entity with agency...]}. Some example words include 'applicant', 'court', 'tenderer' etc.")
+
+args = argParser.parse_args()
+
+IN_FNAME = str(args.input) # Input filename
+OUT_FNAME = str(args.output) # Output filename
+AGENT_DICT_FILE = str(args.agents) # Agents dictionary JSON file (data inside must be of the form {'agent_nouns' : [...list of English word strings, each of which represents an entity with agency...]})
 DEONTICS = ['shall ', 'must ', 'shall not ', 'must not '] # List of relevant deontic phrases
 EXCLUDED_PHRASES = ["shall apply", "shall mean", "this regulation shall apply", "shall be binding in its entirety and directly applicable in the member states", "shall be binding in its entirety and directly applicable in all member states", "shall enter into force", "shall be based", "within the meaning", "shall be considered"] # if these phrases occur in a sentence it means it must be constitutive
 EXCLUDED_START_PHRASES = ['amendments to decision', 'amendments to implementing decision', 'in this case,', 'in such a case,', 'in such cases,'] # if these phrases occur at the START of a sentence, it must be constitutive
-EXCLUDED_ATTR = ["Directive", "Directives", "Protocol", "Protocols", "Decision", "Decisions", "Paragraph", "Paragraphs", "Article", "Articles", "Agreement", "Agreements", "Annex", "Annexes", "ID", "IDs", "Certification", "Certifications", "Fund", "Funds", "PPE", "Regulation", "Regulations", "CONFIDENTIEL UE/EU CONFIDENTIAL"] # these phrases can never be part of an attribute (agent being regulated) name
+EXCLUDED_ATTR = ["Directive", "Directives", "Protocol", "Protocols", "Decision", "Decisions", "Paragraph", "Paragraphs", "Article", "Articles", "Agreement", "Agreements", "Annex", "Annexes", "ID", "IDs", "Certification", "Certifications", "Fund", "Funds", "PPE", "Regulation", "Regulations", "CONFIDENTIEL UE/EU CONFIDENTIAL", "instrument", "instruments", "signature", "signatures", "safeguard"] # these phrases can never be part of an attribute (agent being regulated) name
 START_TOKENS = ['Article', 'Chapter', 'Section', 'ARTICLE', 'CHAPTER', 'SECTION', 'Paragraph', 'PARAGRAPH'] # tokens at the start of a sentence that can be pruned (indicates that the sentenciser did not break up text into clean sentences)
 KNOWN_ATTR = {'director' : 'Director', 'directorate-general' : 'Directorate-General', 'director-general' : 'Director-General', 'directorates-general' : 'Directorates-General', 'member states' : 'Member States', 'member state' : 'Member State'} # known attributes and phrasing
 
-with open('data/agent_nouns.json') as json_file: # import list of agent nouns (manually curated subset from ConceptNet: https://github.com/commonsense/conceptnet5/wiki/Downloads)
+with open(AGENT_DICT_FILE) as json_file: # import list of agent nouns (manually curated subset from ConceptNet: https://github.com/commonsense/conceptnet5/wiki/Downloads)
     AGENT_NOUNS = json.load(json_file)['agent_nouns']
-
-def check_out_dir(data_dir):
-    """Check if directory for saving extracted text exists, make directory if not 
-
-        Parameters
-        ----------
-        data_dir: str
-            Output directory path.
-
-    """
-
-    if not os.path.isdir(data_dir):
-        os.makedirs(data_dir)
-        print(f"Created saving directory at {data_dir}")
 
 # BEGIN: function definitions
 def extract_verb_with_aux(sent, input_word):
@@ -441,7 +438,7 @@ def is_regulatory_or_constitutive(sent):
                     if len(item['text'].strip()) > 1:
                         if (item['pos'] == 'PROPN') and not contains_kw_token(item['text'], EXCLUDED_ATTR): # 1. Best case: proper noun subject
                             propns.append(item['text'])
-                        if (item['pos'] == 'NOUN') and contains_agent_noun(item['text']): # 2. Next best case: check if subject is an agent noun (ConceptNet subset)
+                        if (item['pos'] == 'NOUN') and contains_agent_noun(item['text']) and not contains_kw_token(item['text'], EXCLUDED_ATTR): # 2. Next best case: check if subject is an agent noun (ConceptNet subset)
                             propns.append(item['text'])
 
                         if len(propns) > 0:
@@ -463,9 +460,9 @@ def is_regulatory_or_constitutive(sent):
                 if (contains_sequence(depseq, 'agent', 'pobj') or contains_sequence(depseq, 'prep', 'pobj')):
                     for item in objs:
                         if len(item['text'].strip()) > 1:
-                            if (item['pos'] == 'PROPN'): # check if objects are proper nouns first
+                            if (item['pos'] == 'PROPN') and not contains_kw_token(item['text'], EXCLUDED_ATTR):
                                 propns.append(item['text'])
-                            if (item['pos'] == 'NOUN') and contains_agent_noun(item['text']): # check if objects are agent nouns
+                            if (item['pos'] == 'NOUN') and contains_agent_noun(item['text']) and not contains_kw_token(item['text'], EXCLUDED_ATTR): # check if objects are agent nouns
                                 propns.append(item['text'])
 
                             if len(propns) > 0:
@@ -478,7 +475,6 @@ def is_regulatory_or_constitutive(sent):
 # END: function definitions
 # BEGIN: apply classifier to input sentences
 
-check_out_dir(OUT_DIR)
 df = pd.read_csv(IN_FNAME)
 rule_predictions = []
 attributes = []
@@ -493,4 +489,4 @@ df['regulatory_according_to_rule'] = rule_predictions
 df['attribute_according_to_rule'] = attributes
 
 # write dataframe result to file
-df.to_csv(OUT_DIR + OUT_FNAME, index=False)
+df.to_csv(OUT_FNAME, index=False)
