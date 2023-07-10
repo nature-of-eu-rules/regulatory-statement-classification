@@ -22,7 +22,7 @@ IN_FNAME = "data/test_data.csv" # Input filename
 OUT_DIR = "output-result/" # Output directory
 OUT_FNAME = "legal_obl_rulebased_evaluation.csv" # Output filename
 DEONTICS = ['shall ', 'must ', 'shall not ', 'must not '] # List of relevant deontic phrases
-EXCLUDED_PHRASES = ["shall apply", "shall mean", "this regulation shall apply", "shall be binding in its entirety and directly applicable in the member states", "shall be binding in its entirety and directly applicable in all member states", "shall enter into force", "shall be based", "within the meaning"] # if these phrases occur in a sentence it means it must be constitutive
+EXCLUDED_PHRASES = ["shall apply", "shall mean", "this regulation shall apply", "shall be binding in its entirety and directly applicable in the member states", "shall be binding in its entirety and directly applicable in all member states", "shall enter into force", "shall be based", "within the meaning", "shall be considered"] # if these phrases occur in a sentence it means it must be constitutive
 EXCLUDED_START_PHRASES = ['amendments to decision', 'amendments to implementing decision', 'in this case,', 'in such a case,', 'in such cases,'] # if these phrases occur at the START of a sentence, it must be constitutive
 EXCLUDED_ATTR = ["Directive", "Directives", "Protocol", "Protocols", "Decision", "Decisions", "Paragraph", "Paragraphs", "Article", "Articles", "Agreement", "Agreements", "Annex", "Annexes", "ID", "IDs", "Certification", "Certifications", "Fund", "Funds", "PPE", "Regulation", "Regulations", "CONFIDENTIEL UE/EU CONFIDENTIAL"] # these phrases can never be part of an attribute (agent being regulated) name
 START_TOKENS = ['Article', 'Chapter', 'Section', 'ARTICLE', 'CHAPTER', 'SECTION', 'Paragraph', 'PARAGRAPH'] # tokens at the start of a sentence that can be pruned (indicates that the sentenciser did not break up text into clean sentences)
@@ -473,7 +473,7 @@ def is_regulatory_or_constitutive(sent):
                 if (contains_sequence(depseq, 'agent', 'pobj') or contains_sequence(depseq, 'prep', 'pobj')):
                     for item in objs:
                         if len(item['text'].strip()) > 1:
-                            if (item['pos'] == ['PROPN']): # check if objects are proper nouns first
+                            if (item['pos'] == 'PROPN'): # check if objects are proper nouns first
                                 propns.append(item['text'])
                             if (item['pos'] == 'NOUN') and contains_agent_noun(item['text']): # check if objects are agent nouns
                                 propns.append(item['text'])
