@@ -9,10 +9,20 @@ fine-tune and evaluate a fewshot classification model for sentence classificatio
 
 import pandas as pd
 import math
+import argparse
+import sys
+from os.path import exists
 
-IN_FNAME = 'eu-regs-full-metadata-till-may-2023-fileformats-cleanedtopics.csv' # input file name (metadata of all extracted legislation documents)
-OUT_DIR = 'output-result/' # output directory where to save sample file
-OUT_FNAME = 'sample_df.csv' # filename (sample of legislation documents to annotate and evaluate classification performance)
+argParser = argparse.ArgumentParser(description='EU law sample document generator: generates a sample of EU legislative documents to annotate for regulatory sentence classification')
+required = argParser.add_argument_group('required arguments')
+required.add_argument("-in", "--input", required=True, help="Path to input CSV file. See output file of 'eu_rules_metadata_extractor.py' in the https://github.com/nature-of-eu-rules/data-extraction repo for the required columns")
+required.add_argument("-out", "--output", required=True, help="Path to output CSV file which stores the generated sample (subset of the rows in the input file)")
+
+args = argParser.parse_args()
+
+IN_FNAME = str(args.input) # Input filename
+OUT_FNAME = str(args.output) # Output filename
+
 COLUMNS_TO_REMOVE = ['author', 'responsible_body', 'title', 'addressee', 'procedure_code', 'day', 'month', 'date_adoption', 'date_in_force', 'date_end_validity', 'subject_matters', 'eurovoc', 'directory_code']
 YEAR_COLUMN_NAME = 'year'
 YEAR_START = 2013.0 # start year for selecting documents from
@@ -37,4 +47,4 @@ for col in df.columns.tolist():
     sampled_df[col] = df[col].sample(n=sample_size, replace=False).values
 
 # write sample dataframe to file
-sampled_df.to_csv(OUT_DIR + OUT_FNAME, index=False)
+sampled_df.to_csv(OUT_FNAME, index=False)

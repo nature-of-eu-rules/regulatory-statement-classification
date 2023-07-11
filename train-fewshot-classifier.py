@@ -10,14 +10,30 @@ import random
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import pickle
+import argparse
+import sys
 
-IN_FNAME = 'data/training_data_legal_obligations.csv' # Input filename
-LABEL_COLUMN_NAME = 'Regulatory (1) Constitutive (0)' # groundtruth column name
+argParser = argparse.ArgumentParser(description='Fine-tune facebook/bart-large-mnli fewshot model to classify English sentences from EU law as either regulatory or non-regulatory')
+required = argParser.add_argument_group('required arguments')
+required.add_argument("-in", "--input", required=True, help="Path to input CSV file with training data.")
+required.add_argument("-ic", "--itemscol", required=True, help="Name of column in input CSV file which contains the items to classify")
+required.add_argument("-cc", "--classcol", required=True, help="Name of column in input CSV file which contains the classified labels for the items")
+required.add_argument("-b", "--bsize", required=True, help="List of batch sizes e.g. [8,16,32]")
+required.add_argument("-e", "--epochs", required=True, help="List of numbers indicating different training iterations or epochs to try e.g. [20,25,30]")
+required.add_argument("-t", "--tsplit", required=True, help="Proportion of data to use as training data (the remainder will be used for validation). Number between 0 and 1. E.g. a value of 0.8 means 80 percent of the data will be used for training and 20 for validation.")
+required.add_argument("-out", "--output", required=True, help="Path to output CSV file with a summary of training results")
+
+args = argParser.parse_args()
+
+OUT_FNAME = str(args.output)
+IN_FNAME = str(args.input) # Input filename
+LABELS_COLUMN_NAME = str(args.classcol) # groundtruth column name
+ITEMS_COLUMN_NAME = str(args.itemscol) # groundtruth column name
 PRETRAINED_MODEL = "facebook/bart-large-mnli" # pretrained few-shot model to finetune
 CLASSES = {"C": 0, "R": 1} # 'C' class refers to 'Constitutive', 'R' class refers to 'Regulatory'
-BATCH_SIZES = [8]
-EPOCHS = [25]
-TRAIN_PERC = 0.8 # Train-test split 80-20
+BATCH_SIZES = eval(str(args.bsize))
+EPOCHS = eval(str(args.epochs))
+TRAIN_PERC = float(args.tsplit) # Train-test split 80-20
 
 def split_data(data, train_p=TRAIN_PERC):
     """ Splits data into training and testing sets
@@ -124,10 +140,12 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
     train_labels = torch.tensor(train_labels)
 
     # Fine-tune the model on the training data
+    print('training...')
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     # batch_size = 32
     for epoch in range(epochs):  # Adjust the number of epochs as needed
+        print('epochs...')
         optimizer.zero_grad()
         # Calculate the total number of samples
         num_samples = len(train_inputs)
@@ -136,6 +154,7 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
         # Loop over the batches
         b_idx = 0
         for batch_index in range(num_batches):
+            print('batches...')
             # print("batch ", str(b_idx))
             b_idx += 1
             # Calculate the batch start and end indices
@@ -299,23 +318,26 @@ def validate_model(classifier, test_data):
 # read data from file into dataframe
 df = pd.read_csv(IN_FNAME)
 # make sure we only look at valid rows (that have either 0 or 1 for regulatory or constitutive)
-relevant_df = df[df[LABEL_COLUMN_NAME].isin(['0', '1'])] 
+
+df = df.astype({LABELS_COLUMN_NAME:'int'}) # convert to int
+
+relevant_df = df[df[LABELS_COLUMN_NAME].isin([0, 1])] 
 # split data into constitutive and regulatory rows
-constitutive_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == '0']
-regulatory_df = relevant_df[relevant_df[LABEL_COLUMN_NAME] == '1']
+constitutive_df = relevant_df[relevant_df[LABELS_COLUMN_NAME] == 0]
+regulatory_df = relevant_df[relevant_df[LABELS_COLUMN_NAME] == 1]
 
 # translate data into few-shot training samples
 data = []
 for row in constitutive_df.itertuples():
     curr_entry = {}
-    curr_entry['premise'] = row[2]
+    curr_entry['premise'] = row[ITEMS_COLUMN_NAME]
     curr_entry['hypothesis'] = "This is a constitutive statement."
     curr_entry['label'] = 'C'
     data.append(curr_entry)
     
 for row in regulatory_df.itertuples():
     curr_entry = {}
-    curr_entry['premise'] = row[2]
+    curr_entry['premise'] = row[ITEMS_COLUMN_NAME]
     curr_entry['hypothesis'] = "This is a regulatory statement."
     curr_entry['label'] = 'R'
     data.append(curr_entry)
@@ -337,14 +359,14 @@ for batch_size in BATCH_SIZES:
         curr_row.append(batch_size)
         curr_row.append(epoch)
         st = time.time()
-        modelfilename = 'data/' + str(TRAIN_PERC).replace('.','') + '_' + str(batch_size) + '_' + str(epoch) + '.model'
+        modelfilename = str(TRAIN_PERC).replace('.','') + '_' + str(batch_size) + '_' + str(epoch) + '.model'
         model_exists = os.path.isfile(modelfilename)
         classifier = None
         if model_exists:
             classifier = load(modelfilename)
         else:
             classifier = train_model(training_texts, batch_size=batch_size, epochs=epoch)
-            save(classifier, 'data/' + str(TRAIN_PERC).replace('.','') + '_' + str(batch_size) + '_' + str(epoch) + '.model')
+            save(classifier, str(TRAIN_PERC).replace('.','') + '_' + str(batch_size) + '_' + str(epoch) + '.model')
 
         et = time.time()
         elapsed_time = et - st
@@ -358,6 +380,5 @@ for batch_size in BATCH_SIZES:
 
 gmt = time.gmtime()
 ts = calendar.timegm(gmt)
-results_filename = 'data/results_{}.csv'.format(str(ts))
 results_df = pd.DataFrame(data, columns=['row_id', 'trainingset_size', 'batch_size', 'epochs', 'training_time', 'validation_time', 'precision', 'groundtruth_labels', 'predicted_labels'])
-results_df.to_csv(results_filename, index=False)
+results_df.to_csv(OUT_FNAME, index=False)
