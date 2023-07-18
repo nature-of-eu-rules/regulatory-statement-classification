@@ -12,6 +12,7 @@ import pandas as pd
 import spacy
 import os
 import json
+import time
 import argparse
 import sys
 from os.path import exists
@@ -20,7 +21,7 @@ from os.path import exists
 nlp = spacy.load('en_core_web_sm')
 nlp.add_pipe('merge_noun_chunks')
 
-argParser = argparse.ArgumentParser(description='Regulatory vs. Non-regulatory sentence classifier for EU legislation based on NLP dependency analysis')
+argParser = argparse.ArgumentParser(description='Regulatory vs. Non-regulatory sentence classifier for EU legislation based on NLP dependency analysis (batch version)')
 required = argParser.add_argument_group('required arguments')
 required.add_argument("-in", "--input", required=True, help="Path to input CSV file. Must have at least one column with header 'sent' containing sentences from EU legislation in English.")
 required.add_argument("-out", "--output", required=True, help="Path to output CSV file in which to store the classification results.")
@@ -40,6 +41,15 @@ KNOWN_ATTR = {'director' : 'Director', 'directorate-general' : 'Directorate-Gene
 
 with open(AGENT_DICT_FILE) as json_file: # import list of agent nouns (manually curated subset from ConceptNet: https://github.com/commonsense/conceptnet5/wiki/Downloads)
     AGENT_NOUNS = json.load(json_file)['agent_nouns']
+
+def generate_batched_index_based_on_year(start_year, end_year, df, colname='celex'):
+    list_of_dataframe_tuples = [] # format: ('year', dataframe) e.g. ('2021', df)
+    for i in range(start_year, end_year+1):
+        year_string = str(i)
+        sentences_for_year_frame = df[df[colname].str[1:5] == year_string]
+        list_of_dataframe_tuples.append((year_string, sentences_for_year_frame))
+
+    return list_of_dataframe_tuples
 
 # BEGIN: function definitions
 def extract_verb_with_aux(sent, input_word):
@@ -476,20 +486,46 @@ def is_regulatory_or_constitutive(sent):
 # BEGIN: apply classifier to input sentences
 
 df = pd.read_csv(IN_FNAME)
-rule_predictions = []
-attributes = []
-for index, row in df.iterrows():
-    print(index, '/', len(df))
-    if (len(row['sent'].split()) > 1000):
-        prediction = {'pred' : 0, 'attr' : ''}
-    else:
-        prediction = is_regulatory_or_constitutive(row['sent'])
-    rule_predictions.append(prediction['pred'])
-    attributes.append(prediction['attr'])
 
-# extend dataframe with classifier predictions in two new columns   
-df['regulatory_according_to_rule'] = rule_predictions
-df['attribute_according_to_rule'] = attributes
+master_df = pd.DataFrame([], columns=df.columns.to_list())
+list_of_dataframes = generate_batched_index_based_on_year(1971, 2022, df)
+idx = 1
 
-# write dataframe result to file
-df.to_csv(OUT_FNAME, index=False)
+print()
+
+for tuple in list_of_dataframes:
+    current_df = pd.DataFrame(tuple[1].values.tolist(), columns=tuple[1].columns.tolist())
+    current_year = tuple[0]
+    rule_predictions = []
+    attributes = []
+    # number of files in batch
+    num_sents = len(current_df)
+    start_time = time.time() # time execution
+
+    curr_idx = 1
+    for index, row in current_df.iterrows():
+        # print(curr_idx, '/', len(current_df))
+        curr_idx += 1
+        if (len(row['sent'].split()) > 1000):
+            prediction = {'pred' : 0, 'attr' : ''}
+        else:
+            prediction = is_regulatory_or_constitutive(row['sent'])
+        rule_predictions.append(prediction['pred'])
+        attributes.append(prediction['attr'])
+
+    # extend dataframe with classifier predictions in two new columns   
+    current_df['regulatory_according_to_rule'] = rule_predictions
+    current_df['attribute_according_to_rule'] = attributes
+
+    # write dataframe result to file
+    current_df.to_csv(OUT_FNAME.lower().replace('.csv', '_' + current_year + '.csv'), index=False)
+    master_df = pd.concat([master_df, current_df], ignore_index=True) # append rows to master results sheet
+
+    end_time = time.time() # time execution
+    execution_time = end_time - start_time
+    print('Processed Batch (', idx, '/', len(list_of_dataframes), ') with ', num_sents, ' sentences in ', execution_time, ' seconds.')
+    # print()
+    idx += 1
+
+master_df.to_csv(OUT_FNAME, index=False) # write master merged batch results lists to one file
+

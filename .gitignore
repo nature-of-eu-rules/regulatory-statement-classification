@@ -7,6 +7,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+rule-based-classification-batch_2019.py
 .Python
 build/
 develop-eggs/
