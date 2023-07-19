@@ -4,12 +4,18 @@
 """
 Trains few-shot binary text classifier to identify regulatory vs. comnstitutive sentences.
 """
+import argparse
+from pathlib import Path
+
 import pandas as pd
 import math
 import random
+
+from tqdm import tqdm
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import pickle
+
 import argparse
 import sys
 
@@ -29,11 +35,14 @@ OUT_FNAME = str(args.output)
 IN_FNAME = str(args.input) # Input filename
 LABELS_COLUMN_NAME = str(args.classcol) # groundtruth column name
 ITEMS_COLUMN_NAME = str(args.itemscol) # groundtruth column name
+
 PRETRAINED_MODEL = "facebook/bart-large-mnli" # pretrained few-shot model to finetune
 CLASSES = {"C": 0, "R": 1} # 'C' class refers to 'Constitutive', 'R' class refers to 'Regulatory'
 BATCH_SIZES = eval(str(args.bsize))
 EPOCHS = eval(str(args.epochs))
 TRAIN_PERC = float(args.tsplit) # Train-test split 80-20
+
+TRAIN_PERC = 0.8 # Train-test split 80-20
 
 def split_data(data, train_p=TRAIN_PERC):
     """ Splits data into training and testing sets
@@ -144,8 +153,7 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     # batch_size = 32
-    for epoch in range(epochs):  # Adjust the number of epochs as needed
-        print('epochs...')
+    for epoch in tqdm(range(epochs), desc=f'Training using batch_size={batch_size}, epochs={epochs}'):
         optimizer.zero_grad()
         # Calculate the total number of samples
         num_samples = len(train_inputs)
@@ -153,8 +161,7 @@ def train_model(data, classes=CLASSES, batch_size=16, epochs=3):
         num_batches = (num_samples + batch_size - 1) // batch_size
         # Loop over the batches
         b_idx = 0
-        for batch_index in range(num_batches):
-            print('batches...')
+        for batch_index in tqdm(range(num_batches), position=1, desc=f'Processing batches for epoch {epoch}'):
             # print("batch ", str(b_idx))
             b_idx += 1
             # Calculate the batch start and end indices
@@ -322,6 +329,7 @@ df = pd.read_csv(IN_FNAME)
 df = df.astype({LABELS_COLUMN_NAME:'int'}) # convert to int
 
 relevant_df = df[df[LABELS_COLUMN_NAME].isin([0, 1])] 
+
 # split data into constitutive and regulatory rows
 constitutive_df = relevant_df[relevant_df[LABELS_COLUMN_NAME] == 0]
 regulatory_df = relevant_df[relevant_df[LABELS_COLUMN_NAME] == 1]
