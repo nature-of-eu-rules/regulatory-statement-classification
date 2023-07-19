@@ -15,6 +15,7 @@ from transformers import AutoTokenizer, AutoModel
 
 from performance_metrics import print_performance_metrics
 
+class_names = ['constitutive', 'regulatory']
 
 def main(input_csv_path: Path):
     """Load, extract features, train classifier, predict and compute performance metrics."""
@@ -29,7 +30,7 @@ def main(input_csv_path: Path):
     print(f'Saving model to {model_path}.')
     classifier.save_model(model_path)
 
-    class_names = ['constitutive', 'regulatory']
+
 
     predict_and_evaluate(train_features, train_labels, class_names, classifier)
     predict_and_evaluate(test_features, test_labels, class_names, classifier)
@@ -92,7 +93,7 @@ def create_features(texts: list[str]) -> torch.Tensor:
 
     dataloader = DataLoader(texts, batch_size=1)  # batch size of 1 was quickest for my development machine
     features = [process_batch(batch) for batch in tqdm(dataloader, desc=f'Creating features')]
-    return torch.cat(features, dim=0)
+    return np.array(torch.cat(features, dim=0))
 
 
 def get_features(features_path: str, texts: list[str], overwrite_existing_features: bool = False):
