@@ -1,3 +1,4 @@
+import argparse
 import math
 import random
 from pathlib import Path
@@ -15,14 +16,18 @@ from transformers import AutoTokenizer, AutoModel
 from performance_metrics import print_performance_metrics
 
 
-def main():
-    """Load, extract features, train classifier, predict and comput performance metrics."""
-    train_texts, test_texts, train_labels, test_labels = load_text_data()
+def main(input_csv_path: Path):
+    """Load, extract features, train classifier, predict and compute performance metrics."""
+    train_texts, test_texts, train_labels, test_labels = load_text_data(input_csv_path)
 
-    train_features = get_features('train_inlegalbert_features.npy', train_texts)
-    test_features = get_features('test_inlegalbert_features.npy', test_texts)
+    base_path = input_csv_path.parent
+    train_features = get_features(base_path / 'train_inlegalbert_features.npy', train_texts)
+    test_features = get_features(base_path / 'test_inlegalbert_features.npy', test_texts)
 
     classifier = train_classifier(train_features, train_labels)
+    model_path = base_path / 'inlegal_bert_xgboost_classifier.json'
+    print(f'Saving model to {model_path}.')
+    classifier.save_model(model_path)
 
     class_names = ['constitutive', 'regulatory']
 
@@ -39,18 +44,17 @@ def train_classifier(train_features: np.array, train_labels: list[str]) -> xgboo
     return model
 
 
-def load_text_data() -> tuple[list[str], list[str], list[str], list[str]]:
+def load_text_data(input_csv_path: Path) -> tuple[list[str], list[str], list[str], list[str]]:
     """Load text data from csv and transform and split into train and test sets.
 
         Returns
         -------
             train_texts, test_texts, train_labels, test_labels - each a list of strings
     """
-    IN_FNAME = Path('../surfdive/data/trainingdata/complete_training_data_7200_cases.csv')
     LABEL_COLUMN_NAME = 'Regulatory (1)'  # groundtruth column name
     CLASSES = {"C": 0, "R": 1}  # 'C' class refers to 'Constitutive', 'R' class refers to 'Regulatory'
     TRAIN_PERC = 0.8  # Train-test split 80-20
-    df = pd.read_csv(IN_FNAME)
+    df = pd.read_csv(input_csv_path)
 
     valid_df = df[df[LABEL_COLUMN_NAME].isin([0, 1])]
 
@@ -59,22 +63,15 @@ def load_text_data() -> tuple[list[str], list[str], list[str], list[str]]:
 
     data = []
     for row in constitutive_df.itertuples():
-        data.append(create_entry(row, 'C'))
+        data.append({'premise': row[2], 'label': 'C'})
     for row in regulatory_df.itertuples():
-        data.append(create_entry(row, 'R'))
+        data.append({'premise': row[2], 'label': 'R'})
     training_data, test_data = split_data(data, TRAIN_PERC)  # split data into train/test sets
     train_texts = [example["premise"] for example in training_data]
     test_texts = [example["premise"] for example in test_data]
     train_labels = [CLASSES[example["label"]] for example in training_data]
     test_labels = [CLASSES[example["label"]] for example in test_data]
     return train_texts, test_texts, train_labels, test_labels
-
-
-def create_entry(row, label):
-    curr_entry = {}
-    curr_entry['premise'] = row[2]
-    curr_entry['label'] = label
-    return curr_entry
 
 
 def create_features(texts: list[str]) -> torch.Tensor:
@@ -137,9 +134,6 @@ def split_data(data, train_p):  # Copied from train-fewshot-classifyer.py
             train data, test data - each a list of data samples as mentioned above
 
     """
-    global TRAIN_PERC
-    TRAIN_PERC = train_p
-
     c_data = []
     r_data = []
     for item in data:
@@ -176,5 +170,15 @@ def split_data(data, train_p):  # Copied from train-fewshot-classifyer.py
         return [], []
 
 
+def parse_arguments():
+    argParser = argparse.ArgumentParser(
+        description='Train xgboost model on inlegal-Bert features to classify English sentences from EU law as either regulatory or non-regulatory')
+    required = argParser.add_argument_group('required arguments')
+    required.add_argument("-in", "--input", required=True, type=Path, help="Path to input CSV file with training data.")
+    args = argParser.parse_args()
+    return args.input
+
+
 if __name__ == "__main__":
-    main()
+    input_path = parse_arguments()
+    main(input_path)
