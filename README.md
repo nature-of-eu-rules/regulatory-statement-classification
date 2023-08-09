@@ -191,7 +191,7 @@ The classification results printed to console output.
 
 ##### License
 
-Copyright (2023) [Kody Moodley, The Netherlands eScience Center](https://www.esciencecenter.nl/team/dr-kody-moodley/)
+Copyright (2023) [Kody Moodley, Christiaan Meijer, The Netherlands eScience Center](http://www.esciencecenter.nl)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
