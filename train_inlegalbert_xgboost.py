@@ -153,6 +153,7 @@ def split_data(data, train_p):  # Copied from train-fewshot-classifyer.py
             train data, test data - each a list of data samples as mentioned above
 
     """
+    random.seed(0)
     c_data = []
     r_data = []
     for item in data:
