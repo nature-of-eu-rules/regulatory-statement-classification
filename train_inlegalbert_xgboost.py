@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 import xgboost
+from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -17,23 +18,40 @@ from performance_metrics import print_performance_metrics
 
 class_names = ['constitutive', 'regulatory']
 
-def main(input_csv_path: Path):
+
+def main(input_csv_path: Path, use_pca=False):
     """Load, extract features, train classifier, predict and compute performance metrics."""
     train_texts, test_texts, train_labels, test_labels = load_text_data(input_csv_path)
 
     base_path = input_csv_path.parent
-    train_features = get_features(base_path / 'train_inlegalbert_features.npy', train_texts)
-    test_features = get_features(base_path / 'test_inlegalbert_features.npy', test_texts)
+    train_features = get_features(base_path / 'train_legalbert_features.npy', train_texts)
+    test_features = get_features(base_path / 'test_legalbert_features.npy', test_texts)
+
+    if use_pca:
+        print('Transforming features using pca...')
+        train_features, test_features = pca_transform(test_features, train_features, base_path)
 
     classifier = train_classifier(train_features, train_labels)
     model_path = base_path / 'inlegal_bert_xgboost_classifier.json'
     print(f'Saving model to {model_path}.')
     classifier.save_model(model_path)
 
-
-
     predict_and_evaluate(train_features, train_labels, class_names, classifier)
     predict_and_evaluate(test_features, test_labels, class_names, classifier)
+
+
+def pca_transform(test_features, train_features, base_path):
+    pca = PCA()
+    pca.fit(train_features)
+    pca_explanations_ = pca.explained_variance_ratio_
+    from matplotlib import pyplot as plt
+    plt.plot([np.sum(pca_explanations_[:i]) for i, _ in enumerate(pca_explanations_)],
+             label='Cumulative explained variance')
+    plt.savefig(base_path / 'pca_explained_variance.svg')
+    top_n_components = 768
+    train_top_n_components = pca.transform(train_features)[:, :top_n_components]
+    test_top_n_components = pca.transform(test_features)[:, :top_n_components]
+    return train_top_n_components, test_top_n_components
 
 
 def train_classifier(train_features: np.array, train_labels: list[str]) -> xgboost.XGBClassifier:
@@ -52,7 +70,7 @@ def load_text_data(input_csv_path: Path) -> tuple[list[str], list[str], list[str
         -------
             train_texts, test_texts, train_labels, test_labels - each a list of strings
     """
-    LABEL_COLUMN_NAME = 'Regulatory (1)'  # groundtruth column name
+    LABEL_COLUMN_NAME = 'Regulatory (1) Constitutive (0)'  # groundtruth column name
     CLASSES = {"C": 0, "R": 1}  # 'C' class refers to 'Constitutive', 'R' class refers to 'Regulatory'
     TRAIN_PERC = 0.8  # Train-test split 80-20
     df = pd.read_csv(input_csv_path)
@@ -135,6 +153,7 @@ def split_data(data, train_p):  # Copied from train-fewshot-classifyer.py
             train data, test data - each a list of data samples as mentioned above
 
     """
+    random.seed(0)
     c_data = []
     r_data = []
     for item in data:
@@ -149,6 +168,7 @@ def split_data(data, train_p):  # Copied from train-fewshot-classifyer.py
 
         c_idx = list(set(random.sample(range(0, len(c_data)), c_len)))
         r_idx = list(set(random.sample(range(0, len(r_data)), r_len)))
+        print(c_idx)
 
         train = []
         test = []
@@ -176,10 +196,13 @@ def parse_arguments():
         description='Train xgboost model on inlegal-Bert features to classify English sentences from EU law as either regulatory or non-regulatory')
     required = argParser.add_argument_group('required arguments')
     required.add_argument("-in", "--input", required=True, type=Path, help="Path to input CSV file with training data.")
+    argParser.add_argument("-f", "--use-pca", action="store_true",
+                           help="Flag to indicate whether to use pca or not")
+
     args = argParser.parse_args()
-    return args.input
+    return args.input, args.use_pca
 
 
 if __name__ == "__main__":
-    input_path = parse_arguments()
-    main(input_path)
+    input_path, use_pca = parse_arguments()
+    main(input_path, use_pca)
