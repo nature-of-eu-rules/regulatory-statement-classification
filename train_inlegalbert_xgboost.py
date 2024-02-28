@@ -19,13 +19,13 @@ from performance_metrics import print_performance_metrics
 class_names = ['constitutive', 'regulatory']
 
 
-def main(input_csv_path: Path, use_pca=False):
+def main(input_csv_path: Path, use_pca=False, model_name="inlegal"):
     """Load, extract features, train classifier, predict and compute performance metrics."""
     train_texts, test_texts, train_labels, test_labels = load_text_data(input_csv_path)
 
     base_path = input_csv_path.parent
-    train_features = get_features(base_path / 'train_legalbert_features.npy', train_texts)
-    test_features = get_features(base_path / 'test_legalbert_features.npy', test_texts)
+    train_features = get_features(base_path / f'train_{model_name}_features.npy', train_texts)
+    test_features = get_features(base_path / f'test_{model_name}_features.npy', test_texts)
 
     if use_pca:
         print('Transforming features using pca...')
@@ -93,11 +93,11 @@ def load_text_data(input_csv_path: Path) -> tuple[list[str], list[str], list[str
     return train_texts, test_texts, train_labels, test_labels
 
 
-def create_features(texts: list[str]) -> torch.Tensor:
+def create_features(texts: list[str], model_tag="law-ai/InLegalBERT") -> torch.Tensor:
     """Create features for a list of texts."""
     max_length = 512
-    tokenizer = AutoTokenizer.from_pretrained("law-ai/InLegalBERT")
-    model = AutoModel.from_pretrained("law-ai/InLegalBERT")
+    tokenizer = AutoTokenizer.from_pretrained(model_tag)
+    model = AutoModel.from_pretrained(model_tag)
 
     def process_batch(batch: Iterable[str]):
         cropped_texts = [text[:max_length] for text in batch]
@@ -114,11 +114,21 @@ def create_features(texts: list[str]) -> torch.Tensor:
     return np.array(torch.cat(features, dim=0))
 
 
-def get_features(features_path: str, texts: list[str], overwrite_existing_features: bool = False):
+def get_features(features_path: str, texts: list[str], overwrite_existing_features: bool = False, model_name="inlegal"):
     """Load existing features or compute new ones and save them for reloading them later."""
+
+    if model_name == "inlegal":
+        model_tag = "law-ai/InLegalBERT"
+    elif model_name == "legal":
+        model_tag = "nlpaueb/legal-bert-small-uncased"
+    elif model_name == "berg":
+        model_tag = "google-bert/bert-base-uncased"
+    else:
+        raise ValueError(f"Unsupported model type '{model_name}'")
+    print(f"Using {model_tag} features.")
     if not Path(features_path).exists() or overwrite_existing_features:
         print(f'No existing features found at {features_path}. Will create them now.')
-        np.save(features_path, create_features(texts))
+        np.save(features_path, create_features(texts, model_tag=model_tag))
 
     features = np.load(features_path)
     print(f'Loaded features for {len(features)} texts from {features_path}.')
@@ -195,8 +205,9 @@ def parse_arguments():
         description='Train xgboost model on inlegal-Bert features to classify English sentences from EU law as either regulatory or non-regulatory')
     required = argParser.add_argument_group('required arguments')
     required.add_argument("-in", "--input", required=True, type=Path, help="Path to input CSV file with training data.")
-    argParser.add_argument("-f", "--use-pca", action="store_true",
-                           help="Flag to indicate whether to use pca or not")
+    argParser.add_argument("-f", "--use-pca", action="store_true", help="Flag to indicate whether to use pca or not")
+    argParser.add_argument("-m", "--model-name", default="inlegal", type=str,
+                           help="Name of the model being used. Choose from [bert, legal, inlegal].")
 
     args = argParser.parse_args()
     return args.input, args.use_pca
