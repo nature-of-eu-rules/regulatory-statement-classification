@@ -24,20 +24,23 @@ def main(input_csv_path: Path, use_pca=False, model_name="inlegal"):
     train_texts, test_texts, train_labels, test_labels = load_text_data(input_csv_path)
 
     base_path = input_csv_path.parent
-    train_features = get_features(base_path / f'train_{model_name}_features.npy', train_texts)
-    test_features = get_features(base_path / f'test_{model_name}_features.npy', test_texts)
+    train_features = get_features(base_path / f'train_{model_name}_features.npy', train_texts, model_name=model_name)
+    test_features = get_features(base_path / f'test_{model_name}_features.npy', test_texts, model_name=model_name)
 
     if use_pca:
         print('Transforming features using pca...')
         train_features, test_features = pca_transform(test_features, train_features, base_path)
 
+    output_file_base = f'{model_name}{"_pca" if use_pca else ""}_xgboost_classifier'
     classifier = train_classifier(train_features, train_labels)
-    model_path = base_path / 'inlegal_bert_xgboost_classifier.json'
+    model_path = base_path / (output_file_base+'_xgboost_classifier.json')
     print(f'Saving model to {model_path}.')
     classifier.save_model(model_path)
 
-    predict_and_evaluate(train_features, train_labels, class_names, classifier)
-    predict_and_evaluate(test_features, test_labels, class_names, classifier)
+    predict_and_evaluate(train_features, train_labels, class_names, classifier,
+                         save_path=base_path / (output_file_base + '_train_predictions.np'))
+    predict_and_evaluate(test_features, test_labels, class_names, classifier,
+                         save_path=base_path / (output_file_base + '_test_predictions.np'))
 
 
 def pca_transform(test_features, train_features, base_path):
@@ -48,9 +51,8 @@ def pca_transform(test_features, train_features, base_path):
     plt.plot([np.sum(pca_explanations_[:i]) for i, _ in enumerate(pca_explanations_)],
              label='Cumulative explained variance')
     plt.savefig(base_path / 'pca_explained_variance.svg')
-    top_n_components = 768
-    train_top_n_components = pca.transform(train_features)[:, :top_n_components]
-    test_top_n_components = pca.transform(test_features)[:, :top_n_components]
+    train_top_n_components = pca.transform(train_features)
+    test_top_n_components = pca.transform(test_features)
     return train_top_n_components, test_top_n_components
 
 
@@ -58,7 +60,7 @@ def train_classifier(train_features: np.array, train_labels: list[str]) -> xgboo
     """Train xgboost classifier."""
     n_trees = 200
     model = xgboost.XGBClassifier(n_estimators=n_trees)
-    print('Training the classifier...')
+    print(f'Training XGBoost model with {n_trees} trees ...')
     model.fit(train_features, train_labels)
     return model
 
@@ -121,7 +123,7 @@ def get_features(features_path: str, texts: list[str], overwrite_existing_featur
         model_tag = "law-ai/InLegalBERT"
     elif model_name == "legal":
         model_tag = "nlpaueb/legal-bert-small-uncased"
-    elif model_name == "berg":
+    elif model_name == "bert":
         model_tag = "google-bert/bert-base-uncased"
     else:
         raise ValueError(f"Unsupported model type '{model_name}'")
@@ -135,14 +137,16 @@ def get_features(features_path: str, texts: list[str], overwrite_existing_featur
     return features
 
 
-def predict_and_evaluate(features: np.array, labels: list[str], class_names: list[str], model):
+def predict_and_evaluate(features: np.array, labels: list[str], class_names: list[str], model, save_path=None):
     """Create predictions using the model and print performance metrics when compared to a ground truth."""
     predictions = model.predict(features)
     probs = model.predict_proba(features)
-    y_pred = [class_names[i] for i in np.array(labels)]
-    y_true = [class_names[i] for i in predictions]
-    print_performance_metrics(y_pred, y_true, probs[:, 1], class_names)
-    print(confusion_matrix(y_true, y_pred))
+    y_true = [class_names[i] for i in np.array(labels)]
+    y_pred = [class_names[i] for i in predictions]
+    print_performance_metrics(y_true, y_pred, probs[:, 1], class_names)
+    print(confusion_matrix(y_pred, y_true))
+    if save_path is not None:
+        np.save(save_path, y_pred)
 
 
 def split_data(data, train_p):  # Copied from train-fewshot-classifyer.py
@@ -210,9 +214,9 @@ def parse_arguments():
                            help="Name of the model being used. Choose from [bert, legal, inlegal].")
 
     args = argParser.parse_args()
-    return args.input, args.use_pca
+    return args.input, args.use_pca, args.model_name
 
 
 if __name__ == "__main__":
-    input_path, use_pca = parse_arguments()
-    main(input_path, use_pca)
+    input_path, use_pca, model_name = parse_arguments()
+    main(input_path, use_pca, model_name=model_name)
