@@ -9,7 +9,7 @@ from train_inlegalbert_xgboost import create_features, class_names
 models = {}
 
 
-def classify_texts(texts: list[str], model_path, return_logits: bool = False):
+def classify_texts(texts: list[str], model_path, return_proba: bool = False):
     """Classifies every text in a list of texts using the xgboost model stored in model_path.
 
     The xgboost model will be loaded and used to classify the texts. The texts however will first be processed by a
