@@ -23,7 +23,7 @@ def classify_texts(texts: list[str], model_path, return_proba: bool = False):
         A list of strings of which each needs to be classified.
     model_path
         The path to a stored xgboost model
-    return_logits
+    return_proba
         return the probabilities of the model
 
     Returns
@@ -39,7 +39,7 @@ def classify_texts(texts: list[str], model_path, return_proba: bool = False):
         models[model_path] = model
 
     model = models[model_path]
-    if return_logits:
+    if return_proba:
         return model.predict_proba(features)
     return model.predict(features)
 
@@ -56,7 +56,7 @@ def parse_arguments():
 
 if __name__ == "__main__":
     model_path, text = parse_arguments()
-    probabilities = classify_texts([text], model_path, return_logits=True)[0]
+    probabilities = classify_texts([text], model_path, return_proba=True)[0]
     classification = np.argmax(probabilities)
     print(f'The model classified the text as a {class_names[classification]} statement.'
           f' ({", ".join([c + ": " + str(p) for p, c in zip(probabilities, class_names)])})')
