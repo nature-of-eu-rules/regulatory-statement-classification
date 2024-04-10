@@ -8,12 +8,12 @@ from dianna.utils.tokenizers import SpacyTokenizer
 from tqdm import tqdm
 
 from classify_text_with_inlegal_bert_xgboost import classify_texts
-from train_inlegalbert_xgboost import class_names, load_text_data
+from train_inlegalbert_xgboost import load_text_data
+from xai_file_convert import load_json_explanations, convert_json_explanations
 
 
 def explain_texts(input_csv_path):
     model_path = Path('..\inlegal_xgboost_classifier_xgboost_classifier.json')
-
 
     class StatementClassifier:
         def __init__(self):
@@ -34,15 +34,13 @@ def explain_texts(input_csv_path):
 
     def run_dianna(input_text):
         return dianna.explain_text(model_runner, input_text, model_runner.tokenizer,
-                                   'LIME', labels=[0,1], num_samples=num_samples,
+                                   'LIME', labels=[0, 1], num_samples=num_samples,
                                    num_features=num_features, )
 
     _train_texts, test_texts, _, _ = load_text_data(input_csv_path)
     results_json_path = Path(f'results_{num_samples}.json')
     if results_json_path.exists():
-        with open(results_json_path, 'r') as fp:
-            results = json.load(fp)
-            print(f'Loaded {len(results)} existing explanations from {results_json_path}.')
+        results = load_json_explanations(results_json_path)
     else:
         results = {}
 
@@ -54,14 +52,12 @@ def explain_texts(input_csv_path):
             results[statement] = current_result
             with open(results_json_path, 'w') as fp:
                 json.dump(results, fp)
-
-
-#%% md
+            convert_json_explanations(results_json_path, str(results_json_path)+'.csv')
 
 
 def parse_arguments():
     argParser = argparse.ArgumentParser(
-        description='Train xgboost model on inlegal-Bert features to classify English sentences from EU law as either regulatory or non-regulatory')
+        description='Explain sentence classification by a trained model.')
     required = argParser.add_argument_group('required arguments')
     required.add_argument("-in", "--input", required=True, type=Path, help="Path to input CSV file with training data.")
     argParser.add_argument("-m", "--model-name", default="inlegal", type=str,
