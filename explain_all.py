@@ -43,7 +43,9 @@ def explain_texts(input_csv_path):
         with open(results_json_path, 'r') as fp:
             results = json.load(fp)
             print(f'Loaded {len(results)} existing explanations from {results_json_path}.')
-    results = {}
+    else:
+        results = {}
+
     for statement in tqdm(test_texts):
         if statement not in results:
             current_result = run_dianna(statement)
