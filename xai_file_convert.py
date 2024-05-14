@@ -11,16 +11,21 @@ def load_json_explanations(results_json_path: Path):
         print(f'Loaded {len(results)} existing explanations from {results_json_path}.')
     return results
 
-def convert_json_explanations(json_path:Path, csv_path:Path):
-    explanations = load_json_explanations(json_path)
+def save_explanations(class_, csv_path, explanations):
     flat = []
     for sentence in explanations:
-        for explanation in explanations[sentence]:
-            for word, start_index, attribution_class_0 in explanation:
-                flat.append([word, sentence, start_index, attribution_class_0])
+        for class_i, explanation in enumerate(explanations[sentence]):
+            for word, start_index, attribution in explanation:
+                if class_i == class_:
+                    flat.append([word, sentence, start_index, attribution])
+                    
     df = pd.DataFrame(flat, columns=['word', 'sentence', 'start_index', 'attribution'])
     df.to_csv(csv_path)
-
+    
+def convert_json_explanations(json_path:Path, csv_path_0:Path, csv_path_1:Path):
+    explanations = load_json_explanations(json_path)
+    save_explanations(0, csv_path_0, explanations)
+    save_explanations(1, csv_path_1, explanations)
 
 def parse_arguments():
     argParser = argparse.ArgumentParser(

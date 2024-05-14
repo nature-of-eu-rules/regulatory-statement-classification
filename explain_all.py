@@ -31,7 +31,7 @@ def explain_texts(input_csv_path):
             results[statement] = current_result
             with open(results_json_path, 'w') as fp:
                 json.dump(results, fp)
-            convert_json_explanations(results_json_path, str(results_json_path)+'.csv')
+            convert_json_explanations(results_json_path, str(results_json_path)+'_0.csv'), str(results_json_path)+'_1.csv')
 
 
 def get_dianna_runner(num_samples):
