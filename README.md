@@ -154,41 +154,6 @@ An input CSV file with training data. At least two columns are required: 1) a co
 
         python train-fewshot-classifier.py --input path/to/input.csv --itemscol 'item_col_name' --classcol 'itemlabel_col_name' --bsize '[8,16]' --epochs '[20,25]' --tsplit 0.8 --output path/to/output.csv
 
-```evaluate-classification-accuracy.py```
-
-Given an input CSV file with at least two columns: 1) the list of ground truth binary classification labels (either 0 or 1 integers) and 2) an analogous column for predicted labels, this script computes basic classification performance metrics: precision, recall, F1-score, accuracy (1 - error rate)
-
-###### Output
-
-The classification results printed to console output.
-
-###### Usage
-
-1. Check the command line arguments required to run the script by typing:
-
-        python evaluate-classification-accuracy.py -h
-        
-        OUTPUT >
-        
-        usage: evaluate-classification-accuracy.py [-h] -in INPUT -tlc TRUECOL -plc PREDCOL
-
-        Script for evaluating binary classification accuracy
-
-        optional arguments:
-        -h, --help            show this help message and exit
-
-        required arguments:
-        -in INPUT, --input INPUT
-                                Path to input CSV file with classified labelled data
-        -tlc TRUECOL, --truecol TRUECOL
-                                Name of column in input CSV file with ground truth labels
-        -plc PREDCOL, --predcol PREDCOL
-                                Name of column in input CSV file with predicted labels
-
-2. Example usage: 
-
-        python evaluate-classification-accuracy.py --input path/to/input.csv --truecol 'ground_truth_labels' --predcol 'predicted_labels'
-
 ##### License
 
 Copyright (2023) [Kody Moodley, Christiaan Meijer, The Netherlands eScience Center](http://www.esciencecenter.nl)

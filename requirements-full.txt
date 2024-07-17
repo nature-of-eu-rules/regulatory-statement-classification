@@ -1,0 +1,14 @@
+beautifulsoup4
+lxml
+kaleido
+pandas
+plotly
+matplotlib
+seaborn
+nltk
+pymupdf
+thefuzz
+python-Levenshtein
+spacy
+transformers==4.30.2
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0.tar.gz
